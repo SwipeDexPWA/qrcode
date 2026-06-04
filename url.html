@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Fixed Branded QR</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stable QR</title>
 
 <style>
 body{
@@ -24,8 +24,8 @@ canvas{
     box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
 
-button, select{
-    padding:10px;
+button{
+    padding:10px 14px;
     border-radius:8px;
 }
 </style>
@@ -34,7 +34,7 @@ button, select{
 
 <select id="mode">
     <option value="center">Center Logo Mode</option>
-    <option value="background">Full Background Mode</option>
+    <option value="background">Background Logo Mode</option>
 </select>
 
 <canvas id="qr" width="1200" height="1200"></canvas>
@@ -44,7 +44,7 @@ button, select{
 
 <script>
 
-const URL = "https://www.swipedex.app/starbucks";
+const URL = "https://example.com";
 const LOGO = "logo.png";
 
 const canvas = document.getElementById("qr");
@@ -68,31 +68,24 @@ async function generate(){
 
     const logo = await loadImage(LOGO);
 
-    const temp = document.createElement("canvas");
-    temp.width = SIZE;
-    temp.height = SIZE;
-    const tctx = temp.getContext("2d");
-
-    // reset
     ctx.clearRect(0,0,SIZE,SIZE);
+
+    // =========================
+    // BACKGROUND
+    // =========================
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
-    // =========================
-    // BACKGROUND HANDLING
-    // =========================
-
     if(mode === "background"){
-        // FULL COLOR BACKGROUND
+        ctx.globalAlpha = 1; // FULL COLOR, but NOT affecting QR logic
         ctx.drawImage(logo,0,0,SIZE,SIZE);
-        tctx.drawImage(logo,0,0,SIZE,SIZE);
-    } else {
-        tctx.drawImage(logo,0,0,SIZE,SIZE);
+        ctx.globalAlpha = 1;
     }
 
     // =========================
-    // QR DOTS (FIXED LOGIC)
+    // QR MODULES (ALWAYS BLACK ONLY)
     // =========================
+    ctx.fillStyle = "#000";
 
     for(let r=0;r<count;r++){
         for(let c=0;c<count;c++){
@@ -103,82 +96,100 @@ async function generate(){
             const x = c*cell;
             const y = r*cell;
 
-            let color = "#000";
-
-            // ONLY apply adaptive coloring in background mode
-            if(mode === "background"){
-                const p = tctx.getImageData(x,y,1,1).data;
-
-                const brightness =
-                    p[0]*0.299 +
-                    p[1]*0.587 +
-                    p[2]*0.114;
-
-                // IMPORTANT FIX:
-                // force high contrast only (NO mid-gray logic)
-                color = brightness < 160 ? "#fff" : "#000";
-            }
-
-            drawDot(x+cell/2,y+cell/2,cell*0.55,color);
+            drawRoundedSquare(
+                x + cell*0.15,
+                y + cell*0.15,
+                cell*0.7,
+                cell*0.7,
+                cell*0.2
+            );
         }
     }
 
     // =========================
-    // EYES (FIXED THICKNESS)
+    // STANDARD FINDER PATTERNS (FIXED)
     // =========================
+    drawFinder(0,0,cell);
+    drawFinder(count-7,0,cell);
+    drawFinder(0,count-7,cell);
 
-    drawEye(0,0,cell,tctx);
-    drawEye(count-7,0,cell,tctx);
-    drawEye(0,count-7,cell,tctx);
-
-    // center logo only in center mode
     if(mode === "center"){
         drawCenterLogo(logo);
     }
 }
 
-// ---------------- DOT ----------------
-function drawDot(x,y,size,color){
+// ---------------- MODULE DOTS ----------------
+function drawRoundedSquare(x,y,w,h,r){
+
     ctx.beginPath();
-    ctx.arc(x,y,size/2,0,Math.PI*2);
-    ctx.fillStyle = color;
+    ctx.moveTo(x+r,y);
+    ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
     ctx.fill();
 }
 
-// ---------------- EYES (FIXED NORMAL THICKNESS) ----------------
-function drawEye(c,r,cell,tctx){
+// ---------------- FINDER (STANDARD + SLIGHTLY ROUNDED) ----------------
+function drawFinder(c,r,cell){
 
-    const cx = c*cell + cell*3.5;
-    const cy = r*cell + cell*3.5;
+    const x = c*cell;
+    const y = r*cell;
 
-    const p = tctx.getImageData(cx,cy,1,1).data;
+    const size = cell*7;
+    const round = cell*0.6;
 
-    const b =
-        p[0]*0.299 +
-        p[1]*0.587 +
-        p[2]*0.114;
+    // outer black
+    drawRoundRect(x,y,size,size,round,"#000");
 
-    const dark = b < 160;
+    // inner white
+    drawRoundRect(
+        x+cell,
+        y+cell,
+        size-cell*2,
+        size-cell*2,
+        round,
+        "#fff"
+    );
 
-    const outer = dark ? "#fff" : "#000";
-    const inner = dark ? "#000" : "#fff";
+    // inner black
+    drawRoundRect(
+        x+cell*2,
+        y+cell*2,
+        size-cell*4,
+        size-cell*4,
+        round,
+        "#000"
+    );
+}
 
-    // FIXED: normal QR eye size (NO overweight circles)
+function drawRoundRect(x,y,w,h,r,color){
+
     ctx.beginPath();
-    ctx.arc(cx,cy,cell*3.0,0,Math.PI*2);
-    ctx.fillStyle = outer;
-    ctx.fill();
+    ctx.moveTo(x+r,y);
+    ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
 
-    ctx.beginPath();
-    ctx.arc(cx,cy,cell*2.0,0,Math.PI*2);
-    ctx.fillStyle = inner;
+    ctx.fillStyle = color;
     ctx.fill();
 }
 
 // ---------------- CENTER LOGO ----------------
 function drawCenterLogo(img){
 
-    const size = SIZE * 0.22;
+    const size = SIZE*0.22;
 
     ctx.fillStyle = "#fff";
     ctx.beginPath();
