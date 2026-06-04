@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>QR Absolute Fix</title>
+<title>QR Stable + Background Adaptive</title>
 
 <style>
 body{
@@ -17,19 +17,25 @@ body{
 }
 
 canvas{
+    width:500px;
+    height:500px;
     background:#fff;
     box-shadow:0 10px 25px rgba(0,0,0,.15);
+}
+
+button, select{
+    padding:8px;
 }
 </style>
 </head>
 <body>
 
 <select id="mode">
-    <option value="center">Center Logo</option>
-    <option value="bg">Background Logo</option>
+    <option value="center">Center Logo Mode</option>
+    <option value="bg">Background Logo Mode</option>
 </select>
 
-<canvas id="qr"></canvas>
+<canvas id="qr" width="600" height="600"></canvas>
 
 <button id="download">Download</button>
 
@@ -43,13 +49,10 @@ const LOGO = "logo.png";
 const canvas = document.getElementById("qr");
 const ctx = canvas.getContext("2d");
 
-// 🚨 CRITICAL: no smoothing EVER
+// IMPORTANT: prevents blur/scaling artifacts
 ctx.imageSmoothingEnabled = false;
 
-const SIZE = 600;
-
-canvas.width = SIZE;
-canvas.height = SIZE;
+const SIZE = canvas.width;
 
 document.getElementById("mode").addEventListener("change", draw);
 
@@ -65,9 +68,7 @@ async function draw(){
 
     const count = qr.getModuleCount();
 
-    // FIXED GRID SIZE (NO MATH SHIFTS)
     const cell = Math.floor(SIZE / count);
-
     const qrSize = cell * count;
     const offset = Math.floor((SIZE - qrSize) / 2);
 
@@ -75,18 +76,55 @@ async function draw(){
 
     // reset
     ctx.clearRect(0,0,SIZE,SIZE);
+
+    // base background
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
-    // background image (SAFE only visual)
+    // =========================
+    // BACKGROUND IMAGE
+    // =========================
     if(mode === "bg"){
         ctx.drawImage(logo,0,0,SIZE,SIZE);
     }
 
-    ctx.fillStyle = "#000";
+    // =========================
+    // GLOBAL CONTRAST DECISION
+    // =========================
+    let qrColor = "#000";
+
+    if(mode === "bg"){
+        const temp = document.createElement("canvas");
+        temp.width = SIZE;
+        temp.height = SIZE;
+        const tctx = temp.getContext("2d");
+
+        tctx.drawImage(logo,0,0,SIZE,SIZE);
+
+        const data = tctx.getImageData(0,0,SIZE,SIZE).data;
+
+        let sum = 0;
+        let samples = 0;
+
+        for(let i=0;i<data.length;i+=80){
+            const r = data[i];
+            const g = data[i+1];
+            const b = data[i+2];
+
+            sum += (r*0.299 + g*0.587 + b*0.114);
+            samples++;
+        }
+
+        const avg = sum / samples;
+
+        // invert if dark background
+        qrColor = avg < 140 ? "#fff" : "#000";
+    }
+
+    ctx.fillStyle = qrColor;
 
     // =========================
-    // DRAW QR (STRICT GRID)
+    // QR MATRIX (SAFE GRID)
     // =========================
     for(let r=0;r<count;r++){
         for(let c=0;c<count;c++){
@@ -100,10 +138,7 @@ async function draw(){
         }
     }
 
-    // NO custom eye drawing (IMPORTANT)
-    // QR library already includes them correctly
-
-    // center logo ONLY
+    // center logo only
     if(mode === "center"){
         drawLogo(logo);
     }
@@ -116,15 +151,16 @@ function drawLogo(img){
 
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(SIZE/2,SIZE/2,size/2+8,0,Math.PI*2);
+    ctx.arc(SIZE/2, SIZE/2, size/2 + 10, 0, Math.PI*2);
     ctx.fill();
 
     ctx.save();
     ctx.beginPath();
-    ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
+    ctx.arc(SIZE/2, SIZE/2, size/2, 0, Math.PI*2);
     ctx.clip();
 
-    ctx.drawImage(img,
+    ctx.drawImage(
+        img,
         SIZE/2 - size/2,
         SIZE/2 - size/2,
         size,
@@ -134,7 +170,7 @@ function drawLogo(img){
     ctx.restore();
 }
 
-// ---------------- IMAGE ----------------
+// ---------------- IMAGE LOADER ----------------
 function loadImage(src){
     return new Promise((res,rej)=>{
         const img = new Image();
@@ -144,7 +180,7 @@ function loadImage(src){
     });
 }
 
-// download
+// ---------------- DOWNLOAD ----------------
 document.getElementById("download").onclick = ()=>{
     const a = document.createElement("a");
     a.download = "qr.png";
