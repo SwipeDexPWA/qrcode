@@ -6,33 +6,42 @@
 <title>Dual Mode QR</title>
 
 <style>
-body{
-    font-family: Arial;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:12px;
-    padding:20px;
-    background:#eee;
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    background: #eee;
 }
 
-canvas{
-    width:500px;
-    max-width:100%;
-    background:#fff;
-    border-radius:12px;
-    box-shadow:0 10px 25px rgba(0,0,0,.15);
+canvas {
+    width: 500px;
+    max-width: 100%;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.15);
 }
 
-button{
-    padding:10px 14px;
-    border:0;
-    border-radius:8px;
-    cursor:pointer;
+button {
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #007bff;
+    color: #fff;
+    font-weight: bold;
 }
 
-select{
-    padding:8px;
+button:hover {
+    background: #0056b3;
+}
+
+select {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
 }
 </style>
 </head>
@@ -49,9 +58,8 @@ select{
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 
 <script>
-
 const URL = "https://example.com";
-const LOGO = "logo.png";
+const LOGO = "logo.png"; // Replace with your valid image source path
 
 const canvas = document.getElementById("qr");
 const ctx = canvas.getContext("2d");
@@ -59,138 +67,145 @@ const SIZE = canvas.width;
 
 document.getElementById("mode").addEventListener("change", generate);
 
+// Run on init
 generate();
 
-async function generate(){
-
+async function generate() {
     const mode = document.getElementById("mode").value;
 
-    const qr = qrcode(0,"H");
+    // Generate QR Data with High Error Correction (H)
+    const qr = qrcode(0, "H");
     qr.addData(URL);
     qr.make();
 
     const count = qr.getModuleCount();
     const cell = SIZE / count;
-
     const logo = await loadImage(LOGO);
 
-    // temp canvas for sampling
-    const temp = document.createElement("canvas");
-    temp.width = SIZE;
-    temp.height = SIZE;
-    const tctx = temp.getContext("2d");
+    // Clear main canvas canvas
+    ctx.clearRect(0, 0, SIZE, SIZE);
 
-    ctx.clearRect(0,0,SIZE,SIZE);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0,0,SIZE,SIZE);
+    // ==========================================
+    // 1. BASE BACKGROUND & TINT CONFIGURATION
+    // ==========================================
+    if (mode === "background") {
+        // Draw image over full background
+        ctx.drawImage(logo, 0, 0, SIZE, SIZE);
+        
+        // Semi-transparent overlay to balance visual presence and scannability
+        ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // =========================
-    // MODE B: FULL BACKGROUND
-    // =========================
-    if(mode === "background"){
-
-        // full color background (NO alpha)
-        ctx.drawImage(logo,0,0,SIZE,SIZE);
-        tctx.drawImage(logo,0,0,SIZE,SIZE);
+        // Frame standard white alignment boxes under finder structures for instant detection
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, cell * 9, cell * 9); 
+        ctx.fillRect((count - 9) * cell, 0, cell * 9, cell * 9); 
+        ctx.fillRect(0, (count - 9) * cell, cell * 9, cell * 9); 
+    } else {
+        // Center Logo Mode: Solid white background
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, SIZE, SIZE);
     }
 
-    // =========================
-    // MODE A: CENTER ONLY
-    // =========================
-    else{
-        tctx.drawImage(logo,0,0,SIZE,SIZE);
-    }
+    // ==========================================
+    // 2. QR MATRIX DOTS RENDERING
+    // ==========================================
+    for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
 
-    // QR DOTS
-    for(let r=0;r<count;r++){
-        for(let c=0;c<count;c++){
+            // Skip primary finder locations (handled separately by drawEye)
+            if (isFinder(r, c, count)) continue;
 
-            if(!qr.isDark(r,c)) continue;
-            if(isFinder(r,c,count)) continue;
+            // In Center Mode, systematically clear out dots where the circular logo drops
+            if (mode === "center") {
+                const distX = (c + 0.5) * cell - SIZE / 2;
+                const distY = (r + 0.5) * cell - SIZE / 2;
+                const dist = Math.sqrt(distX * distX + distY * distY);
+                if (dist < (SIZE * 0.22) / 2 + 12) {
+                    continue; 
+                }
+            }
 
-            const x = c*cell;
-            const y = r*cell;
+            const x = c * cell;
+            const y = r * cell;
 
-            const p = tctx.getImageData(x,y,1,1).data;
-
-            const brightness =
-                p[0]*0.299 +
-                p[1]*0.587 +
-                p[2]*0.114;
-
-            // adaptive color
-            const color = brightness < 140 ? "#fff" : "#000";
-
-            drawDot(x+cell*0.5,y+cell*0.5,cell*0.65,color);
+            if (qr.isDark(r, c)) {
+                // Main QR data points must always be dark for standard reading clarity
+                drawDot(x + cell * 0.5, y + cell * 0.5, cell * 0.75, "#000000");
+            } else if (mode === "background") {
+                // Accent dots mapping light modules over background textures
+                drawDot(x + cell * 0.5, y + cell * 0.5, cell * 0.35, "#ffffff");
+            }
         }
     }
 
-    // eyes
-    drawEye(0,0,cell,tctx);
-    drawEye(count-7,0,cell,tctx);
-    drawEye(0,count-7,cell,tctx);
+    // ==========================================
+    // 3. FINDER PATTERNS (STANDARD PROPORTIONS)
+    // ==========================================
+    drawEye(0, 0, cell);
+    drawEye(count - 7, 0, cell);
+    drawEye(0, count - 7, cell);
 
-    // center logo only in mode A
-    if(mode === "center"){
+    // ==========================================
+    // 4. CENTER LOGO LAYER OVERLAY
+    // ==========================================
+    if (mode === "center") {
         drawCenterLogo(logo);
     }
 }
 
-// ------------------ DOT ------------------
-function drawDot(x,y,size,color){
+// ------------------ MATRIX DOT CONSTRUCT ------------------
+function drawDot(x, y, size, color) {
     ctx.beginPath();
-    ctx.arc(x,y,size/2,0,Math.PI*2);
+    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
 }
 
-// ------------------ EYES ------------------
-function drawEye(c,r,cell,tctx){
+// ------------------ STANDARD 3-LAYER EYE FINDERS ------------------
+function drawEye(c, r, cell) {
+    const cx = c * cell + cell * 3.5;
+    const cy = r * cell + cell * 3.5;
 
-    const cx = c*cell + cell*3.5;
-    const cy = r*cell + cell*3.5;
-
-    const p = tctx.getImageData(cx,cy,1,1).data;
-
-    const b = p[0]*0.299 + p[1]*0.587 + p[2]*0.114;
-
-    const dark = b < 140;
-
-    const outer = dark ? "#fff" : "#000";
-    const inner = dark ? "#000" : "#fff";
-
-    // outer
+    // Layer 1: Outer Black Frame (7x7 module scale width)
     ctx.beginPath();
-    ctx.arc(cx,cy,cell*3.4,0,Math.PI*2);
-    ctx.fillStyle = outer;
+    ctx.arc(cx, cy, cell * 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#000000";
     ctx.fill();
 
-    // inner
+    // Layer 2: Inner White Spacer (5x5 module scale width)
     ctx.beginPath();
-    ctx.arc(cx,cy,cell*1.6,0,Math.PI*2);
-    ctx.fillStyle = inner;
+    ctx.arc(cx, cy, cell * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+
+    // Layer 3: Solid Black Center Core (3x3 module scale width)
+    ctx.beginPath();
+    ctx.arc(cx, cy, cell * 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#000000";
     ctx.fill();
 }
 
-// ------------------ CENTER LOGO ------------------
-function drawCenterLogo(img){
-
+// ------------------ COMPACT CENTER LOGO ------------------
+function drawCenterLogo(img) {
     const size = SIZE * 0.22;
 
-    ctx.fillStyle = "#fff";
+    // Circular white protective badge
+    ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.arc(SIZE/2,SIZE/2,size/2+12,0,Math.PI*2);
+    ctx.arc(SIZE / 2, SIZE / 2, size / 2 + 12, 0, Math.PI * 2);
     ctx.fill();
 
+    // Safe clipped boundaries for inner logo asset
     ctx.save();
     ctx.beginPath();
-    ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
+    ctx.arc(SIZE / 2, SIZE / 2, size / 2, 0, Math.PI * 2);
     ctx.clip();
 
     ctx.drawImage(
         img,
-        (SIZE-size)/2,
-        (SIZE-size)/2,
+        (SIZE - size) / 2,
+        (SIZE - size) / 2,
         size,
         size
     );
@@ -198,32 +213,32 @@ function drawCenterLogo(img){
     ctx.restore();
 }
 
-// ------------------ HELPERS ------------------
-function isFinder(r,c,n){
+// ------------------ SYSTEM UTILITIES ------------------
+function isFinder(r, c, n) {
     return (
-        (r<9 && c<9) ||
-        (r<9 && c>n-10) ||
-        (r>n-10 && c<9)
+        (r < 9 && c < 9) ||
+        (r < 9 && c > n - 10) ||
+        (r > n - 10 && c < 9)
     );
 }
 
-function loadImage(src){
-    return new Promise((res,rej)=>{
+function loadImage(src) {
+    return new Promise((res, rej) => {
         const img = new Image();
-        img.onload = ()=>res(img);
+        img.crossOrigin = "anonymous"; // Helps prevent canvas pollution issues
+        img.onload = () => res(img);
         img.onerror = rej;
         img.src = src;
     });
 }
 
-// download
-document.getElementById("download").onclick = ()=>{
+// Handle Local Downloads
+document.getElementById("download").onclick = () => {
     const a = document.createElement("a");
-    a.download = "qr.png";
+    a.download = "qr_code.png";
     a.href = canvas.toDataURL("image/png");
     a.click();
 };
-
 </script>
 
 </body>
