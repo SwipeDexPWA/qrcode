@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stable QR</title>
+<title>Safe Branded QR</title>
 
 <style>
 body{
@@ -23,21 +23,17 @@ canvas{
     border-radius:12px;
     box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
-
-button{
-    padding:10px 14px;
-    border-radius:8px;
-}
 </style>
 </head>
 <body>
 
 <select id="mode">
-    <option value="center">Center Logo Mode</option>
-    <option value="background">Background Logo Mode</option>
+    <option value="center">Center Logo</option>
+    <option value="background">Background Logo</option>
 </select>
 
 <canvas id="qr" width="1200" height="1200"></canvas>
+
 <button id="download">Download</button>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
@@ -68,22 +64,21 @@ async function generate(){
 
     const logo = await loadImage(LOGO);
 
+    // RESET
     ctx.clearRect(0,0,SIZE,SIZE);
 
-    // =========================
-    // BACKGROUND
-    // =========================
+    // WHITE BASE (IMPORTANT FOR SCANNING)
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
+    // BACKGROUND LOGO (PURELY VISUAL)
     if(mode === "background"){
-        ctx.globalAlpha = 1; // FULL COLOR, but NOT affecting QR logic
-        ctx.drawImage(logo,0,0,SIZE,SIZE);
         ctx.globalAlpha = 1;
+        ctx.drawImage(logo,0,0,SIZE,SIZE);
     }
 
     // =========================
-    // QR MODULES (ALWAYS BLACK ONLY)
+    // QR MODULES (SAFE DRAWING)
     // =========================
     ctx.fillStyle = "#000";
 
@@ -93,82 +88,67 @@ async function generate(){
             if(!qr.isDark(r,c)) continue;
             if(isFinder(r,c,count)) continue;
 
-            const x = c*cell;
-            const y = r*cell;
+            const x = c * cell;
+            const y = r * cell;
 
-            drawRoundedSquare(
-                x + cell*0.15,
-                y + cell*0.15,
-                cell*0.7,
-                cell*0.7,
-                cell*0.2
+            drawDot(
+                x + cell/2,
+                y + cell/2,
+                cell * 0.55
             );
         }
     }
 
-    // =========================
-    // STANDARD FINDER PATTERNS (FIXED)
-    // =========================
+    // FINDERS (STANDARD SAFE STYLE)
     drawFinder(0,0,cell);
     drawFinder(count-7,0,cell);
     drawFinder(0,count-7,cell);
 
+    // CENTER LOGO ONLY IN CENTER MODE
     if(mode === "center"){
         drawCenterLogo(logo);
     }
 }
 
-// ---------------- MODULE DOTS ----------------
-function drawRoundedSquare(x,y,w,h,r){
+// ---------------- DOT (SLIGHT ROUNDING ONLY) ----------------
+function drawDot(x,y,size){
+
+    const r = size * 0.25; // SAFE rounding
 
     ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.lineTo(x+w-r,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r);
-    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.moveTo(x-r,y-size/2);
+    ctx.lineTo(x+r,y-size/2);
+    ctx.quadraticCurveTo(x+size/2,y-size/2,x+size/2,y-r);
+    ctx.lineTo(x+size/2,y+r);
+    ctx.quadraticCurveTo(x+size/2,y+size/2,x+r,y+size/2);
+    ctx.lineTo(x-r,y+size/2);
+    ctx.quadraticCurveTo(x-size/2,y+size/2,x-size/2,y+r);
+    ctx.lineTo(x-size/2,y-r);
+    ctx.quadraticCurveTo(x-size/2,y-size/2,x-r,y-size/2);
     ctx.closePath();
+
     ctx.fill();
 }
 
-// ---------------- FINDER (STANDARD + SLIGHTLY ROUNDED) ----------------
+// ---------------- FINDER (STANDARD QR STYLE, SLIGHTLY ROUNDED ONLY) ----------------
 function drawFinder(c,r,cell){
 
-    const x = c*cell;
-    const y = r*cell;
-
-    const size = cell*7;
-    const round = cell*0.6;
+    const x = c * cell;
+    const y = r * cell;
+    const s = cell * 7;
+    const rr = cell * 0.8; // subtle rounding only
 
     // outer black
-    drawRoundRect(x,y,size,size,round,"#000");
+    roundRect(x,y,s,s,rr,"#000");
 
     // inner white
-    drawRoundRect(
-        x+cell,
-        y+cell,
-        size-cell*2,
-        size-cell*2,
-        round,
-        "#fff"
-    );
+    roundRect(x+cell,y+cell,s-cell*2,s-cell*2,rr,"#fff");
 
     // inner black
-    drawRoundRect(
-        x+cell*2,
-        y+cell*2,
-        size-cell*4,
-        size-cell*4,
-        round,
-        "#000"
-    );
+    roundRect(x+cell*2,y+cell*2,s-cell*4,s-cell*4,rr,"#000");
 }
 
-function drawRoundRect(x,y,w,h,r,color){
+function roundRect(x,y,w,h,r,color){
 
     ctx.beginPath();
     ctx.moveTo(x+r,y);
@@ -189,7 +169,7 @@ function drawRoundRect(x,y,w,h,r,color){
 // ---------------- CENTER LOGO ----------------
 function drawCenterLogo(img){
 
-    const size = SIZE*0.22;
+    const size = SIZE * 0.22;
 
     ctx.fillStyle = "#fff";
     ctx.beginPath();
