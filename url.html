@@ -1,325 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Branded QR</title>
 
-    <title>Premium Branded QR</title>
+<style>
+body{
+    font-family: Arial;
+    background:#f2f2f2;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:15px;
+    padding:20px;
+}
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            padding: 30px;
-        }
+canvas{
+    width:500px;
+    max-width:100%;
+    background:white;
+    border-radius:16px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.15);
+}
 
-        canvas {
-            width: 500px;
-            max-width: 100%;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0);
-        }
-
-        button {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-    </style>
+button{
+    padding:10px 16px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+</style>
 </head>
-
 <body>
 
-    <canvas id="qr" width="1200" height="1200"></canvas>
+<canvas id="qr" width="1200" height="1200"></canvas>
+<button id="download">Download PNG</button>
 
-    <button id="download">
-        Download PNG
-    </button>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
 
-    <script>
+const SHARE_URL = "https://example.com";
+const LOGO_URL = "logo.png";
 
-        const SHARE_URL = "https://www.swipedex.app";
+const canvas = document.getElementById("qr");
+const ctx = canvas.getContext("2d");
+const SIZE = canvas.width;
 
-        const WATERMARK_LOGO = "logo.png";
-        const CENTER_LOGO = "blank.png";
+generate();
 
-        const canvas = document.getElementById("qr");
-        const ctx = canvas.getContext("2d");
+async function generate(){
 
-        const SIZE = canvas.width;
+    const qr = qrcode(0, "H");
+    qr.addData(SHARE_URL);
+    qr.make();
 
-        generateQR();
+    const modules = qr.getModuleCount();
+    const cell = SIZE / modules;
 
-        async function generateQR() {
+    const logo = await loadImage(LOGO_URL);
 
-            const qr = qrcode(0, "H");
-            qr.addData(SHARE_URL);
-            qr.make();
+    // temp canvas for sampling logo pixels
+    const temp = document.createElement("canvas");
+    temp.width = SIZE;
+    temp.height = SIZE;
+    const tctx = temp.getContext("2d");
 
-            const modules = qr.getModuleCount();
-            const cell = SIZE / modules;
+    // draw logo into temp
+    tctx.drawImage(logo, 0, 0, SIZE, SIZE);
 
-            const watermark = await loadImage(WATERMARK_LOGO);
-            const centerLogo = await loadImage(CENTER_LOGO);
+    // background
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0,0,SIZE,SIZE);
 
-            const tempCanvas = document.createElement("canvas");
-            tempCanvas.width = SIZE;
-            tempCanvas.height = SIZE;
+    // full background logo (faded)
+    ctx.globalAlpha = 0.12;
+    ctx.drawImage(logo, 0, 0, SIZE, SIZE);
+    ctx.globalAlpha = 1;
 
-            const tempCtx = tempCanvas.getContext("2d");
+    // QR modules
+    for(let r=0; r<modules; r++){
+        for(let c=0; c<modules; c++){
 
-            tempCtx.drawImage(
-                watermark,
-                0,
-                0,
-                SIZE,
-                SIZE
-            );
+            if(!qr.isDark(r,c)) continue;
+            if(isFinderArea(r,c,modules)) continue;
 
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, 0, SIZE, SIZE);
+            const x = c * cell;
+            const y = r * cell;
 
-            ctx.save();
-            ctx.globalAlpha = 1;
-            ctx.drawImage(
-                watermark,
-                0,
-                0,
-                SIZE,
-                SIZE
-            );
-            ctx.restore();
+            const px = Math.floor(x);
+            const py = Math.floor(y);
 
-            for (let row = 0; row < modules; row++) {
+            const p = tctx.getImageData(px, py, 1, 1).data;
 
-                for (let col = 0; col < modules; col++) {
+            const brightness =
+                (p[0]*0.299 + p[1]*0.587 + p[2]*0.114);
 
-                    if (!qr.isDark(row, col)) continue;
+            let color = (brightness < 140) ? "#fff" : "#000";
 
-                    if (isFinderArea(row, col, modules))
-                        continue;
-
-                    const x = col * cell;
-                    const y = row * cell;
-
-                    const sampleX = Math.floor(x);
-                    const sampleY = Math.floor(y);
-
-                    const pixel =
-                        tempCtx.getImageData(
-                            sampleX,
-                            sampleY,
-                            1,
-                            1
-                        ).data;
-
-                    const brightness =
-                        (pixel[0] + pixel[1] + pixel[2]) / 3;
-
-                    let shade;
-
-                    if (brightness < 60) {
-                        shade = "#000";
-                    }
-                    else if (brightness < 120) {
-                        shade = "#111";
-                    }
-                    else if (brightness < 180) {
-                        shade = "#222";
-                    }
-                    else {
-                        shade = "#333";
-                    }
-
-                    ctx.fillStyle = shade;
-
-                    roundedDot(
-                        x + cell * 0.15,
-                        y + cell * 0.15,
-                        cell * 0.7,
-                        cell * 0.7,
-                        cell * 0.35
-                    );
-                }
-            }
-
-            drawFinder(0, 0, cell);
-            drawFinder(modules - 7, 0, cell);
-            drawFinder(0, modules - 7, cell);
-
-            drawCenterLogo(centerLogo);
-        }
-
-        function roundedDot(x, y, w, h, r) {
-
-            ctx.beginPath();
-
-            ctx.moveTo(x + r, y);
-
-            ctx.lineTo(x + w - r, y);
-
-            ctx.quadraticCurveTo(
-                x + w,
-                y,
-                x + w,
-                y + r
-            );
-
-            ctx.lineTo(
-                x + w,
-                y + h - r
-            );
-
-            ctx.quadraticCurveTo(
-                x + w,
-                y + h,
-                x + w - r,
-                y + h
-            );
-
-            ctx.lineTo(
-                x + r,
-                y + h
-            );
-
-            ctx.quadraticCurveTo(
-                x,
-                y + h,
-                x,
-                y + h - r
-            );
-
-            ctx.lineTo(
-                x,
-                y + r
-            );
-
-            ctx.quadraticCurveTo(
-                x,
-                y,
-                x + r,
-                y
-            );
-
-            ctx.closePath();
-            ctx.fill();
-        }
-
-        function drawFinder(col, row, cell) {
-
-            const x = col * cell;
-            const y = row * cell;
-            const s = cell * 7;
-
-            ctx.fillStyle = "#000";
-            ctx.fillRect(x, y, s, s);
-
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(
-                x + cell,
-                y + cell,
-                cell * 5,
-                cell * 5
-            );
-
-            ctx.fillStyle = "#000";
-            ctx.fillRect(
-                x + cell * 2,
-                y + cell * 2,
-                cell * 3,
-                cell * 3
+            drawDot(
+                x + cell*0.15,
+                y + cell*0.15,
+                cell*0.7,
+                color
             );
         }
+    }
 
-        function isFinderArea(row, col, count) {
+    // circular eyes
+    drawEye(0,0,cell,tctx);
+    drawEye(modules-7,0,cell,tctx);
+    drawEye(0,modules-7,cell,tctx);
 
-            return (
-                (row < 8 && col < 8) ||
-                (row < 8 && col > count - 9) ||
-                (row > count - 9 && col < 8)
-            );
-        }
+    // center logo
+    drawCenterLogo(logo);
+}
 
-        function drawCenterLogo(img) {
+function drawDot(x,y,size,color){
 
-            const logoSize = SIZE * 0.22;
+    ctx.beginPath();
+    ctx.arc(
+        x + size/2,
+        y + size/2,
+        size/2,
+        0,
+        Math.PI*2
+    );
 
-            const x = (SIZE - logoSize) / 2;
-            const y = (SIZE - logoSize) / 2;
+    ctx.fillStyle = color;
+    ctx.fill();
+}
 
-            ctx.fillStyle = "#fff";
+function drawEye(col,row,cell,tctx){
 
-            ctx.beginPath();
-            ctx.arc(
-                SIZE / 2,
-                SIZE / 2,
-                logoSize / 2 + 20,
-                0,
-                Math.PI * 2
-            );
-            ctx.fill();
+    const cx = col*cell + cell*3.5;
+    const cy = row*cell + cell*3.5;
 
-            ctx.save();
+    const p = tctx.getImageData(cx,cy,1,1).data;
 
-            ctx.beginPath();
-            ctx.arc(
-                SIZE / 2,
-                SIZE / 2,
-                logoSize / 2,
-                0,
-                Math.PI * 2
-            );
-            ctx.clip();
+    const b = p[0]*0.299 + p[1]*0.587 + p[2]*0.114;
+    const dark = b < 140;
 
-            ctx.drawImage(
-                img,
-                x,
-                y,
-                logoSize,
-                logoSize
-            );
+    const outer = dark ? "#fff" : "#000";
+    const middle = dark ? "#000" : "#fff";
+    const inner = dark ? "#fff" : "#000";
 
-            ctx.restore();
-        }
+    // outer
+    ctx.beginPath();
+    ctx.arc(cx,cy,cell*3.5,0,Math.PI*2);
+    ctx.fillStyle = outer;
+    ctx.fill();
 
-        function loadImage(src) {
+    // middle
+    ctx.beginPath();
+    ctx.arc(cx,cy,cell*2.5,0,Math.PI*2);
+    ctx.fillStyle = middle;
+    ctx.fill();
 
-            return new Promise((resolve, reject) => {
+    // inner
+    ctx.beginPath();
+    ctx.arc(cx,cy,cell*1.5,0,Math.PI*2);
+    ctx.fillStyle = inner;
+    ctx.fill();
+}
 
-                const img = new Image();
+function isFinderArea(r,c,count){
+    return (
+        (r < 9 && c < 9) ||
+        (r < 9 && c > count-10) ||
+        (r > count-10 && c < 9)
+    );
+}
 
-                img.crossOrigin = "anonymous";
+function drawCenterLogo(img){
 
-                img.onload = () => resolve(img);
-                img.onerror = reject;
+    const size = SIZE * 0.22;
+    const x = (SIZE-size)/2;
+    const y = (SIZE-size)/2;
 
-                img.src = src;
-            });
-        }
+    // white circle background
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(SIZE/2,SIZE/2,size/2+15,0,Math.PI*2);
+    ctx.fill();
 
-        document
-            .getElementById("download")
-            .addEventListener("click", () => {
+    // clip logo into circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
+    ctx.clip();
 
-                const a = document.createElement("a");
+    ctx.drawImage(img,x,y,size,size);
 
-                a.href = canvas.toDataURL("image/png");
-                a.download = "qr-code.png";
+    ctx.restore();
+}
 
-                a.click();
-            });
+function loadImage(src){
+    return new Promise((res,rej)=>{
+        const img = new Image();
+        img.onload = ()=>res(img);
+        img.onerror = rej;
+        img.src = src;
+    });
+}
 
-    </script>
+// download
+document.getElementById("download").onclick = ()=>{
+    const a = document.createElement("a");
+    a.download = "qr.png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+};
+
+</script>
 
 </body>
-
 </html>
