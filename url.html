@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Dual Mode QR Fixed</title>
+<title>Stable QR Fixed</title>
 
 <style>
 body{
@@ -73,13 +73,13 @@ async function generate(){
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
-    // background logo (VISUAL ONLY)
+    // background logo (visual only)
     if(mode === "background"){
         ctx.drawImage(logo,0,0,SIZE,SIZE);
     }
 
     // =========================
-    // QR DOTS (SAFE - NO LOGIC DEPENDENCY)
+    // QR MODULES (SAFE GRID ONLY)
     // =========================
     ctx.fillStyle = "#000";
 
@@ -92,64 +92,54 @@ async function generate(){
             const x = c * cell;
             const y = r * cell;
 
-            drawDot(
-                x + cell/2,
-                y + cell/2,
-                cell * 0.55
+            drawSquare(
+                x,
+                y,
+                cell
             );
         }
     }
 
-    // eyes
+    // eyes (FIXED SAFE VERSION)
     drawEye(0,0,cell);
     drawEye(count-7,0,cell);
     drawEye(0,count-7,cell);
 
-    // center logo
+    // center logo only in center mode
     if(mode === "center"){
         drawCenterLogo(logo);
     }
 }
 
-// ---------------- DOT ----------------
-function drawDot(x,y,size){
-
-    ctx.beginPath();
-    ctx.arc(x,y,size/2,0,Math.PI*2);
-    ctx.fill();
+// ---------------- QR DOT (SQUARE SAFE) ----------------
+function drawSquare(x,y,size){
+    ctx.fillRect(
+        Math.floor(x),
+        Math.floor(y),
+        Math.ceil(size),
+        Math.ceil(size)
+    );
 }
 
-// ---------------- EYES (SAFE ROUNDED QR STYLE) ----------------
+// ---------------- EYES (STANDARD QR STRUCTURE) ----------------
 function drawEye(c,r,cell){
 
     const x = c * cell;
     const y = r * cell;
 
     const size = cell * 7;
-    const round = cell * 0.6;
 
-    // outer
-    drawRoundRect(x,y,size,size,round,"#000");
+    // outer black
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x, y, size, size);
 
-    // middle
-    drawRoundRect(
-        x+cell,
-        y+cell,
-        size-cell*2,
-        size-cell*2,
-        round,
-        "#fff"
-    );
+    // inner white
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x + cell, y + cell, size - cell*2, size - cell*2);
 
-    // inner
-    drawRoundRect(
-        x+cell*2,
-        y+cell*2,
-        size-cell*4,
-        size-cell*4,
-        round,
-        "#000"
-    );
+    // inner black
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x + cell*2, y + cell*2, size - cell*4, size - cell*4);
 }
 
 // ---------------- CENTER LOGO ----------------
@@ -167,7 +157,8 @@ function drawCenterLogo(img){
     ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
     ctx.clip();
 
-    ctx.drawImage(img,
+    ctx.drawImage(
+        img,
         (SIZE-size)/2,
         (SIZE-size)/2,
         size,
@@ -193,24 +184,6 @@ function loadImage(src){
         img.onerror = rej;
         img.src = src;
     });
-}
-
-function drawRoundRect(x,y,w,h,r,color){
-
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.lineTo(x+w-r,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r);
-    ctx.quadraticCurveTo(x,y,x+r,y);
-    ctx.closePath();
-
-    ctx.fillStyle = color;
-    ctx.fill();
 }
 
 // download
