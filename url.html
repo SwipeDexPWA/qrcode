@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>QR Adaptive Safe Background</title>
+<title>Safe Adaptive QR Branding</title>
 
 <style>
 body{
@@ -28,7 +28,7 @@ canvas{
 
 <select id="mode">
     <option value="center">Center Logo</option>
-    <option value="bg">Background Adaptive</option>
+    <option value="bg">Background Image</option>
 </select>
 
 <canvas id="qr" width="600" height="600"></canvas>
@@ -67,51 +67,28 @@ async function draw(){
 
     const logo = await loadImage(LOGO);
 
-    // reset
     ctx.clearRect(0,0,SIZE,SIZE);
 
-    // background
+    // =========================
+    // BACKGROUND
+    // =========================
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
     if(mode === "bg"){
+        // draw image
         ctx.drawImage(logo,0,0,SIZE,SIZE);
+
+        // add SAFE overlay to control brightness
+        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.fillRect(0,0,SIZE,SIZE);
     }
 
     // =========================
-    // LOW-RES BRIGHTNESS MAP (SAFE)
+    // QR (ALWAYS PURE BLACK)
     // =========================
-    let brightnessMap = [];
+    ctx.fillStyle = "#000";
 
-    if(mode === "bg"){
-        const temp = document.createElement("canvas");
-        temp.width = 80;   // LOW RES SAMPLE (IMPORTANT)
-        temp.height = 80;
-
-        const tctx = temp.getContext("2d");
-        tctx.drawImage(logo,0,0,80,80);
-
-        const data = tctx.getImageData(0,0,80,80).data;
-
-        for(let y=0;y<80;y++){
-            brightnessMap[y] = [];
-            for(let x=0;x<80;x++){
-
-                const i = (y*80 + x) * 4;
-
-                const r = data[i];
-                const g = data[i+1];
-                const b = data[i+2];
-
-                brightnessMap[y][x] =
-                    (r*0.299 + g*0.587 + b*0.114);
-            }
-        }
-    }
-
-    // =========================
-    // QR RENDER
-    // =========================
     for(let r=0;r<count;r++){
         for(let c=0;c<count;c++){
 
@@ -120,19 +97,6 @@ async function draw(){
             const x = offset + c * cell;
             const y = offset + r * cell;
 
-            let color = "#000";
-
-            if(mode === "bg"){
-                // map QR cell → brightness map (SAFE scaling)
-                const bx = Math.floor((c / count) * 80);
-                const by = Math.floor((r / count) * 80);
-
-                const b = brightnessMap[by]?.[bx] ?? 255;
-
-                color = (b < 140) ? "#fff" : "#000";
-            }
-
-            ctx.fillStyle = color;
             ctx.fillRect(x, y, cell, cell);
         }
     }
