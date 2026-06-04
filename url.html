@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Premium Branded QR</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        canvas {
+            width: 500px;
+            max-width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .15);
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="qr" width="1200" height="1200"></canvas>
+
+    <button id="download">
+        Download PNG
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+
+    <script>
+
+        const SHARE_URL = "https://www.swipedex.app";
+
+        const WATERMARK_LOGO = "logo.png";
+        const CENTER_LOGO = "logo.png";
+
+        const canvas = document.getElementById("qr");
+        const ctx = canvas.getContext("2d");
+
+        const SIZE = canvas.width;
+
+        generateQR();
+
+        async function generateQR() {
+
+            const qr = qrcode(0, "H");
+            qr.addData(SHARE_URL);
+            qr.make();
+
+            const modules = qr.getModuleCount();
+            const cell = SIZE / modules;
+
+            const watermark = await loadImage(WATERMARK_LOGO);
+            const centerLogo = await loadImage(CENTER_LOGO);
+
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = SIZE;
+            tempCanvas.height = SIZE;
+
+            const tempCtx = tempCanvas.getContext("2d");
+
+            tempCtx.drawImage(
+                watermark,
+                0,
+                0,
+                SIZE,
+                SIZE
+            );
+
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, SIZE, SIZE);
+
+            ctx.save();
+            ctx.globalAlpha = 0.10;
+            ctx.drawImage(
+                watermark,
+                0,
+                0,
+                SIZE,
+                SIZE
+            );
+            ctx.restore();
+
+            for (let row = 0; row < modules; row++) {
+
+                for (let col = 0; col < modules; col++) {
+
+                    if (!qr.isDark(row, col)) continue;
+
+                    if (isFinderArea(row, col, modules))
+                        continue;
+
+                    const x = col * cell;
+                    const y = row * cell;
+
+                    const sampleX = Math.floor(x);
+                    const sampleY = Math.floor(y);
+
+                    const pixel =
+                        tempCtx.getImageData(
+                            sampleX,
+                            sampleY,
+                            1,
+                            1
+                        ).data;
+
+                    const brightness =
+                        (pixel[0] + pixel[1] + pixel[2]) / 3;
+
+                    let shade;
+
+                    if (brightness < 60) {
+                        shade = "#000";
+                    }
+                    else if (brightness < 120) {
+                        shade = "#111";
+                    }
+                    else if (brightness < 180) {
+                        shade = "#222";
+                    }
+                    else {
+                        shade = "#333";
+                    }
+
+                    ctx.fillStyle = shade;
+
+                    roundedDot(
+                        x + cell * 0.15,
+                        y + cell * 0.15,
+                        cell * 0.7,
+                        cell * 0.7,
+                        cell * 0.35
+                    );
+                }
+            }
+
+            drawFinder(0, 0, cell);
+            drawFinder(modules - 7, 0, cell);
+            drawFinder(0, modules - 7, cell);
+
+            drawCenterLogo(centerLogo);
+        }
+
+        function roundedDot(x, y, w, h, r) {
+
+            ctx.beginPath();
+
+            ctx.moveTo(x + r, y);
+
+            ctx.lineTo(x + w - r, y);
+
+            ctx.quadraticCurveTo(
+                x + w,
+                y,
+                x + w,
+                y + r
+            );
+
+            ctx.lineTo(
+                x + w,
+                y + h - r
+            );
+
+            ctx.quadraticCurveTo(
+                x + w,
+                y + h,
+                x + w - r,
+                y + h
+            );
+
+            ctx.lineTo(
+                x + r,
+                y + h
+            );
+
+            ctx.quadraticCurveTo(
+                x,
+                y + h,
+                x,
+                y + h - r
+            );
+
+            ctx.lineTo(
+                x,
+                y + r
+            );
+
+            ctx.quadraticCurveTo(
+                x,
+                y,
+                x + r,
+                y
+            );
+
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawFinder(col, row, cell) {
+
+            const x = col * cell;
+            const y = row * cell;
+            const s = cell * 7;
+
+            ctx.fillStyle = "#000";
+            ctx.fillRect(x, y, s, s);
+
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(
+                x + cell,
+                y + cell,
+                cell * 5,
+                cell * 5
+            );
+
+            ctx.fillStyle = "#000";
+            ctx.fillRect(
+                x + cell * 2,
+                y + cell * 2,
+                cell * 3,
+                cell * 3
+            );
+        }
+
+        function isFinderArea(row, col, count) {
+
+            return (
+                (row < 8 && col < 8) ||
+                (row < 8 && col > count - 9) ||
+                (row > count - 9 && col < 8)
+            );
+        }
+
+        function drawCenterLogo(img) {
+
+            const logoSize = SIZE * 0.22;
+
+            const x = (SIZE - logoSize) / 2;
+            const y = (SIZE - logoSize) / 2;
+
+            ctx.fillStyle = "#fff";
+
+            ctx.beginPath();
+            ctx.arc(
+                SIZE / 2,
+                SIZE / 2,
+                logoSize / 2 + 20,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            ctx.save();
+
+            ctx.beginPath();
+            ctx.arc(
+                SIZE / 2,
+                SIZE / 2,
+                logoSize / 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.clip();
+
+            ctx.drawImage(
+                img,
+                x,
+                y,
+                logoSize,
+                logoSize
+            );
+
+            ctx.restore();
+        }
+
+        function loadImage(src) {
+
+            return new Promise((resolve, reject) => {
+
+                const img = new Image();
+
+                img.crossOrigin = "anonymous";
+
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+
+                img.src = src;
+            });
+        }
+
+        document
+            .getElementById("download")
+            .addEventListener("click", () => {
+
+                const a = document.createElement("a");
+
+                a.href = canvas.toDataURL("image/png");
+                a.download = "qr-code.png";
+
+                a.click();
+            });
+
+    </script>
+
+</body>
+
+</html>
