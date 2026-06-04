@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Dual Mode QR 2</title>
+<title>Dual Mode QR Fixed</title>
 
 <style>
 body{
@@ -24,14 +24,7 @@ canvas{
     box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
 
-button{
-    padding:10px 14px;
-    border:0;
-    border-radius:8px;
-    cursor:pointer;
-}
-
-select{
+button, select{
     padding:8px;
 }
 </style>
@@ -50,7 +43,7 @@ select{
 
 <script>
 
-const URL = "https://example.com";
+const URL = "https://swipedex.app";
 const LOGO = "logo.png";
 
 const canvas = document.getElementById("qr");
@@ -74,131 +67,99 @@ async function generate(){
 
     const logo = await loadImage(LOGO);
 
-    // temp canvas for sampling
-    const temp = document.createElement("canvas");
-    temp.width = SIZE;
-    temp.height = SIZE;
-    const tctx = temp.getContext("2d");
-
     ctx.clearRect(0,0,SIZE,SIZE);
+
+    // base
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
-    // =========================
-    // MODE B: FULL BACKGROUND
-    // =========================
+    // background logo (VISUAL ONLY)
     if(mode === "background"){
-
-        // full color background (NO alpha)
         ctx.drawImage(logo,0,0,SIZE,SIZE);
-        tctx.drawImage(logo,0,0,SIZE,SIZE);
     }
 
     // =========================
-    // MODE A: CENTER ONLY
+    // QR DOTS (SAFE - NO LOGIC DEPENDENCY)
     // =========================
-    else{
-        tctx.drawImage(logo,0,0,SIZE,SIZE);
-    }
+    ctx.fillStyle = "#000";
 
-    // QR DOTS
     for(let r=0;r<count;r++){
         for(let c=0;c<count;c++){
 
             if(!qr.isDark(r,c)) continue;
             if(isFinder(r,c,count)) continue;
 
-            const x = c*cell;
-            const y = r*cell;
+            const x = c * cell;
+            const y = r * cell;
 
-            const p = tctx.getImageData(x,y,1,1).data;
-
-            const brightness =
-                p[0]*0.299 +
-                p[1]*0.587 +
-                p[2]*0.114;
-
-            // adaptive color
-            const color = brightness < 140 ? "#fff" : "#000";
-
-            drawDot(x+cell*0.5,y+cell*0.5,cell*0.65,color);
+            drawDot(
+                x + cell/2,
+                y + cell/2,
+                cell * 0.55
+            );
         }
     }
 
     // eyes
-    drawEye(0,0,cell,tctx);
-    drawEye(count-7,0,cell,tctx);
-    drawEye(0,count-7,cell,tctx);
+    drawEye(0,0,cell);
+    drawEye(count-7,0,cell);
+    drawEye(0,count-7,cell);
 
-    // center logo only in mode A
+    // center logo
     if(mode === "center"){
         drawCenterLogo(logo);
     }
 }
 
-// ------------------ DOT ------------------
-function drawDot(x,y,size,color){
+// ---------------- DOT ----------------
+function drawDot(x,y,size){
+
     ctx.beginPath();
     ctx.arc(x,y,size/2,0,Math.PI*2);
-    ctx.fillStyle = color;
     ctx.fill();
 }
 
-// ------------------ EYES ------------------
-function drawEye(c,r,cell,tctx){
+// ---------------- EYES (SAFE ROUNDED QR STYLE) ----------------
+function drawEye(c,r,cell){
 
     const x = c * cell;
     const y = r * cell;
 
     const size = cell * 7;
-    const round = cell * 0.8;
+    const round = cell * 0.6;
 
-    const p = tctx.getImageData(
-        x + size/2,
-        y + size/2,
-        1,
-        1
-    ).data;
+    // outer
+    drawRoundRect(x,y,size,size,round,"#000");
 
-    const b = p[0]*0.299 + p[1]*0.587 + p[2]*0.114;
-
-    const dark = b < 140;
-
-    const outer = dark ? "#fff" : "#000";
-    const inner = dark ? "#000" : "#fff";
-
-    // OUTER FRAME (rounded square)
-    drawRoundRect(x, y, size, size, round, outer);
-
-    // MIDDLE CUT (white)
+    // middle
     drawRoundRect(
-        x + cell,
-        y + cell,
-        size - cell*2,
-        size - cell*2,
+        x+cell,
+        y+cell,
+        size-cell*2,
+        size-cell*2,
         round,
         "#fff"
     );
 
-    // INNER DOT (black)
+    // inner
     drawRoundRect(
-        x + cell*2,
-        y + cell*2,
-        size - cell*4,
-        size - cell*4,
+        x+cell*2,
+        y+cell*2,
+        size-cell*4,
+        size-cell*4,
         round,
-        inner
+        "#000"
     );
 }
 
-// ------------------ CENTER LOGO ------------------
+// ---------------- CENTER LOGO ----------------
 function drawCenterLogo(img){
 
     const size = SIZE * 0.22;
 
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(SIZE/2,SIZE/2,size/2+12,0,Math.PI*2);
+    ctx.arc(SIZE/2,SIZE/2,size/2+10,0,Math.PI*2);
     ctx.fill();
 
     ctx.save();
@@ -206,8 +167,7 @@ function drawCenterLogo(img){
     ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
     ctx.clip();
 
-    ctx.drawImage(
-        img,
+    ctx.drawImage(img,
         (SIZE-size)/2,
         (SIZE-size)/2,
         size,
@@ -217,7 +177,7 @@ function drawCenterLogo(img){
     ctx.restore();
 }
 
-// ------------------ HELPERS ------------------
+// ---------------- HELPERS ----------------
 function isFinder(r,c,n){
     return (
         (r<9 && c<9) ||
@@ -234,6 +194,7 @@ function loadImage(src){
         img.src = src;
     });
 }
+
 function drawRoundRect(x,y,w,h,r,color){
 
     ctx.beginPath();
