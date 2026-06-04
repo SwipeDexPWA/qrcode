@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Dual Mode QR</title>
+<title>Fixed Branded QR</title>
 
 <style>
 body{
@@ -24,15 +24,9 @@ canvas{
     box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
 
-button{
-    padding:10px 14px;
-    border:0;
+button, select{
+    padding:10px;
     border-radius:8px;
-    cursor:pointer;
-}
-
-select{
-    padding:8px;
 }
 </style>
 </head>
@@ -40,7 +34,7 @@ select{
 
 <select id="mode">
     <option value="center">Center Logo Mode</option>
-    <option value="background">Full Background Logo Mode</option>
+    <option value="background">Full Background Mode</option>
 </select>
 
 <canvas id="qr" width="1200" height="1200"></canvas>
@@ -74,34 +68,32 @@ async function generate(){
 
     const logo = await loadImage(LOGO);
 
-    // temp canvas for sampling
     const temp = document.createElement("canvas");
     temp.width = SIZE;
     temp.height = SIZE;
     const tctx = temp.getContext("2d");
 
+    // reset
     ctx.clearRect(0,0,SIZE,SIZE);
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
     // =========================
-    // MODE B: FULL BACKGROUND
+    // BACKGROUND HANDLING
     // =========================
-    if(mode === "background"){
 
-        // full color background (NO alpha)
+    if(mode === "background"){
+        // FULL COLOR BACKGROUND
         ctx.drawImage(logo,0,0,SIZE,SIZE);
         tctx.drawImage(logo,0,0,SIZE,SIZE);
-    }
-
-    // =========================
-    // MODE A: CENTER ONLY
-    // =========================
-    else{
+    } else {
         tctx.drawImage(logo,0,0,SIZE,SIZE);
     }
 
-    // QR DOTS
+    // =========================
+    // QR DOTS (FIXED LOGIC)
+    // =========================
+
     for(let r=0;r<count;r++){
         for(let c=0;c<count;c++){
 
@@ -111,32 +103,41 @@ async function generate(){
             const x = c*cell;
             const y = r*cell;
 
-            const p = tctx.getImageData(x,y,1,1).data;
+            let color = "#000";
 
-            const brightness =
-                p[0]*0.299 +
-                p[1]*0.587 +
-                p[2]*0.114;
+            // ONLY apply adaptive coloring in background mode
+            if(mode === "background"){
+                const p = tctx.getImageData(x,y,1,1).data;
 
-            // adaptive color
-            const color = brightness < 140 ? "#fff" : "#000";
+                const brightness =
+                    p[0]*0.299 +
+                    p[1]*0.587 +
+                    p[2]*0.114;
 
-            drawDot(x+cell*0.5,y+cell*0.5,cell*0.65,color);
+                // IMPORTANT FIX:
+                // force high contrast only (NO mid-gray logic)
+                color = brightness < 160 ? "#fff" : "#000";
+            }
+
+            drawDot(x+cell/2,y+cell/2,cell*0.55,color);
         }
     }
 
-    // eyes
+    // =========================
+    // EYES (FIXED THICKNESS)
+    // =========================
+
     drawEye(0,0,cell,tctx);
     drawEye(count-7,0,cell,tctx);
     drawEye(0,count-7,cell,tctx);
 
-    // center logo only in mode A
+    // center logo only in center mode
     if(mode === "center"){
         drawCenterLogo(logo);
     }
 }
 
-// ------------------ DOT ------------------
+// ---------------- DOT ----------------
 function drawDot(x,y,size,color){
     ctx.beginPath();
     ctx.arc(x,y,size/2,0,Math.PI*2);
@@ -144,7 +145,7 @@ function drawDot(x,y,size,color){
     ctx.fill();
 }
 
-// ------------------ EYES ------------------
+// ---------------- EYES (FIXED NORMAL THICKNESS) ----------------
 function drawEye(c,r,cell,tctx){
 
     const cx = c*cell + cell*3.5;
@@ -152,34 +153,36 @@ function drawEye(c,r,cell,tctx){
 
     const p = tctx.getImageData(cx,cy,1,1).data;
 
-    const b = p[0]*0.299 + p[1]*0.587 + p[2]*0.114;
+    const b =
+        p[0]*0.299 +
+        p[1]*0.587 +
+        p[2]*0.114;
 
-    const dark = b < 140;
+    const dark = b < 160;
 
     const outer = dark ? "#fff" : "#000";
     const inner = dark ? "#000" : "#fff";
 
-    // outer
+    // FIXED: normal QR eye size (NO overweight circles)
     ctx.beginPath();
-    ctx.arc(cx,cy,cell*3.4,0,Math.PI*2);
+    ctx.arc(cx,cy,cell*3.0,0,Math.PI*2);
     ctx.fillStyle = outer;
     ctx.fill();
 
-    // inner
     ctx.beginPath();
-    ctx.arc(cx,cy,cell*1.6,0,Math.PI*2);
+    ctx.arc(cx,cy,cell*2.0,0,Math.PI*2);
     ctx.fillStyle = inner;
     ctx.fill();
 }
 
-// ------------------ CENTER LOGO ------------------
+// ---------------- CENTER LOGO ----------------
 function drawCenterLogo(img){
 
     const size = SIZE * 0.22;
 
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(SIZE/2,SIZE/2,size/2+12,0,Math.PI*2);
+    ctx.arc(SIZE/2,SIZE/2,size/2+10,0,Math.PI*2);
     ctx.fill();
 
     ctx.save();
@@ -187,8 +190,7 @@ function drawCenterLogo(img){
     ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
     ctx.clip();
 
-    ctx.drawImage(
-        img,
+    ctx.drawImage(img,
         (SIZE-size)/2,
         (SIZE-size)/2,
         size,
@@ -198,7 +200,7 @@ function drawCenterLogo(img){
     ctx.restore();
 }
 
-// ------------------ HELPERS ------------------
+// ---------------- HELPERS ----------------
 function isFinder(r,c,n){
     return (
         (r<9 && c<9) ||
