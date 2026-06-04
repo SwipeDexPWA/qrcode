@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Stable QR Generator</title>
+<title>QR Scan Fixed</title>
 
 <style>
 body{
@@ -18,15 +18,9 @@ body{
 
 canvas{
     width:500px;
-    max-width:100%;
+    height:500px; /* IMPORTANT: force equal rendering size */
     background:#fff;
-    border-radius:12px;
     box-shadow:0 10px 25px rgba(0,0,0,.15);
-}
-
-button, select{
-    padding:8px;
-    border-radius:6px;
 }
 </style>
 </head>
@@ -34,10 +28,10 @@ button, select{
 
 <select id="mode">
     <option value="center">Center Logo Mode</option>
-    <option value="background">Full Background Logo Mode</option>
+    <option value="background">Background Logo Mode</option>
 </select>
 
-<canvas id="qr" width="1200" height="1200"></canvas>
+<canvas id="qr" width="500" height="500"></canvas>
 
 <button id="download">Download</button>
 
@@ -50,7 +44,11 @@ const LOGO = "logo.png";
 
 const canvas = document.getElementById("qr");
 const ctx = canvas.getContext("2d");
-const SIZE = canvas.width;
+
+// 🚨 CRITICAL: disable smoothing (THIS FIXES SCANNING)
+ctx.imageSmoothingEnabled = false;
+
+const SIZE = 500;
 
 document.getElementById("mode").addEventListener("change", generate);
 
@@ -60,15 +58,15 @@ async function generate(){
 
     const mode = document.getElementById("mode").value;
 
-    const qr = qrcode(0, "H");
+    const qr = qrcode(0,"H");
     qr.addData(URL);
     qr.make();
 
     const count = qr.getModuleCount();
 
-    // ✅ FIX: integer-safe sizing + quiet zone
-    const quietZone = 80;
-    const usable = SIZE - quietZone * 2;
+    const quiet = 20;
+    const usable = SIZE - quiet * 2;
+
     const cell = Math.floor(usable / count);
 
     const qrSize = cell * count;
@@ -76,14 +74,12 @@ async function generate(){
 
     const logo = await loadImage(LOGO);
 
-    // reset canvas
+    // reset
     ctx.clearRect(0,0,SIZE,SIZE);
-
-    // base
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,SIZE,SIZE);
 
-    // background logo (SAFE visual only)
+    // background image (safe only)
     if(mode === "background"){
         ctx.drawImage(logo,0,0,SIZE,SIZE);
     }
@@ -91,7 +87,7 @@ async function generate(){
     ctx.fillStyle = "#000";
 
     // =========================
-    // QR MODULES (PIXEL SAFE GRID)
+    // QR MODULES (PIXEL PERFECT)
     // =========================
     for(let r=0;r<count;r++){
         for(let c=0;c<count;c++){
@@ -106,21 +102,18 @@ async function generate(){
         }
     }
 
-    // =========================
-    // FINDER PATTERNS (SAFE)
-    // =========================
+    // eyes
     drawEye(offset, offset, cell);
     drawEye(offset + (count-7)*cell, offset, cell);
     drawEye(offset, offset + (count-7)*cell, cell);
 
-    // center logo ONLY in center mode
     if(mode === "center"){
         drawCenterLogo(logo);
     }
 }
 
-// ---------------- EYES (QR STANDARD SAFE) ----------------
-function drawEye(x, y, cell){
+// ---------------- EYES ----------------
+function drawEye(x,y,cell){
 
     const size = cell * 7;
 
@@ -137,22 +130,21 @@ function drawEye(x, y, cell){
 // ---------------- CENTER LOGO ----------------
 function drawCenterLogo(img){
 
-    const size = SIZE * 0.22;
+    const size = 120;
 
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(SIZE/2, SIZE/2, size/2 + 10, 0, Math.PI*2);
+    ctx.arc(SIZE/2,SIZE/2,size/2+10,0,Math.PI*2);
     ctx.fill();
 
     ctx.save();
     ctx.beginPath();
-    ctx.arc(SIZE/2, SIZE/2, size/2, 0, Math.PI*2);
+    ctx.arc(SIZE/2,SIZE/2,size/2,0,Math.PI*2);
     ctx.clip();
 
-    ctx.drawImage(
-        img,
-        (SIZE - size) / 2,
-        (SIZE - size) / 2,
+    ctx.drawImage(img,
+        SIZE/2 - size/2,
+        SIZE/2 - size/2,
         size,
         size
     );
