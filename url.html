@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Safe Adaptive QR Branding</title>
+<title>Production Safe QR</title>
 
 <style>
 body{
@@ -19,17 +19,11 @@ body{
 canvas{
     width:500px;
     height:500px;
-    background:#fff;
     box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
 </style>
 </head>
 <body>
-
-<select id="mode">
-    <option value="center">Center Logo</option>
-    <option value="bg">Background Image</option>
-</select>
 
 <canvas id="qr" width="600" height="600"></canvas>
 
@@ -47,13 +41,9 @@ const ctx = canvas.getContext("2d");
 
 const SIZE = canvas.width;
 
-document.getElementById("mode").addEventListener("change", draw);
-
 draw();
 
 async function draw(){
-
-    const mode = document.getElementById("mode").value;
 
     const qr = qrcode(0,"H");
     qr.addData(URL);
@@ -70,22 +60,29 @@ async function draw(){
     ctx.clearRect(0,0,SIZE,SIZE);
 
     // =========================
-    // BACKGROUND
+    // BACKGROUND IMAGE (SAFE DIMMED)
     // =========================
-    ctx.fillStyle = "#fff";
+    ctx.drawImage(logo,0,0,SIZE,SIZE);
+
+    // DARK OVERLAY TO GUARANTEE CONTRAST
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(0,0,SIZE,SIZE);
 
-    if(mode === "bg"){
-        // draw image
-        ctx.drawImage(logo,0,0,SIZE,SIZE);
+    // =========================
+    // WHITE QR PLATE (CRITICAL FIX)
+    // =========================
+    const pad = cell * 2;
 
-        // add SAFE overlay to control brightness
-        ctx.fillStyle = "rgba(0,0,0,0.25)";
-        ctx.fillRect(0,0,SIZE,SIZE);
-    }
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(
+        offset - pad,
+        offset - pad,
+        qrSize + pad*2,
+        qrSize + pad*2
+    );
 
     // =========================
-    // QR (ALWAYS PURE BLACK)
+    // QR (PURE BLACK ONLY)
     // =========================
     ctx.fillStyle = "#000";
 
@@ -94,16 +91,19 @@ async function draw(){
 
             if(!qr.isDark(r,c)) continue;
 
-            const x = offset + c * cell;
-            const y = offset + r * cell;
-
-            ctx.fillRect(x, y, cell, cell);
+            ctx.fillRect(
+                offset + c * cell,
+                offset + r * cell,
+                cell,
+                cell
+            );
         }
     }
 
-    if(mode === "center"){
-        drawLogo(logo);
-    }
+    // =========================
+    // CENTER LOGO (SAFE ZONE ONLY)
+    // =========================
+    drawLogo(logo);
 }
 
 // ---------------- CENTER LOGO ----------------
